@@ -1,0 +1,78 @@
+services:
+  db:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: takecare
+      MYSQL_USER: takecareuser
+      MYSQL_PASSWORD: ${CI_DB_PASSWORD:?Required}
+      MYSQL_ROOT_PASSWORD: ${CI_ROOT_PASSWORD:?Required}
+
+    volumes:
+      - mysql_data:/var/lib/mysql
+
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - mysql -h 127.0.0.1 -u "$$MYSQL_USER" -p"$$MYSQL_PASSWORD" "$$MYSQL_DATABASE" -e "SELECT 1"
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 30s
+
+  web:
+    image: ${CI_IMAGE:-takecare-app:ci}
+
+    environment:
+      DB_NAME: takecare
+      DB_USER: takecareuser
+      DB_PASSWORD: ${CI_DB_PASSWORD:?Required}
+      DB_HOST: db
+      DB_PORT: "3306"
+      DJANGO_SECRET_KEY: ${CI_SECRET_KEY:?Required}
+      DJANGO_DEBUG: "False"
+      DJANGO_ALLOWED_HOSTS: "localhost,127.0.0.1,web"
+
+    command: >
+      sh -c "python manage.py migrate --noinput &&
+      python manage.py collectstatic --noinput &&
+      exec gunicorn --bind 0.0.0.0:8000
+      --workers 2 takecare.wsgi:application"
+
+    volumes:
+      - static_data:/app/staticfiles
+      - media_data:/app/media
+
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import socket; socket.create_connection(('127.0.0.1',8000),5).close()"
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 30s
+
+    depends_on:
+      db:
+        condition: service_healthy
+
+  nginx:
+    image: nginx:stable-alpine
+
+    ports:
+      - "127.0.0.1:8007:80"
+
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - static_data:/app/staticfiles:ro
+      - media_data:/app/media:ro
+
+    depends_on:
+      web:
+        condition: service_healthy
+
+volumes:
+  mysql_data:
+  static_data:
+  media_data:
