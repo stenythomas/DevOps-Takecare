@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: takecare-config
+  namespace: takecare
+data:
+  DB_NAME: "takecare"
+  DB_USER: "takecareuser"
+  DB_HOST: "mysql"
+  DB_PORT: "3306"
+  DJANGO_DEBUG: "False"
+  DJANGO_ALLOWED_HOSTS: "localhost,127.0.0.1,nginx,django"
